@@ -84,26 +84,26 @@ main:
     display procStartStr
     lea dx, F1Name
     call fopen
-    cmp ax, 1
+    cmp bx, 1
     je endMain              
     mov file1Descr, ax ; copy desc
     
     lea dx, F2Name
     call fopen
-    cmp ax, 1
+    cmp bx, 1
     je endMain              
     mov file2Descr, ax ; copy desc
     
     display sucMessage1
-    call filesCmp
+    call filesCmp  
     
     mov bx, file1Descr
     call fclose
     
     mov bx, file2Descr
-    call fclose
+    call fclose          
      
-    jmp endMain
+    jmp endMain  
 noData: 
     display noDataStr   
 endMain:
@@ -165,52 +165,49 @@ fopen proc
     mov ah, 3dh
     mov al, 0h  ; 0 000 00 0 0b : compatability mode
     int 21h
-        
+    
+    mov bx, 1    
     jc errorHandling ; if errors occured, handle them 
     
+    xor bx, bx
     ;mov fileDescr, ax ; copy desc
-    jmp fopenOk
+    jmp fopenEnd
     
 errorHandling:
 
     cmp al, 02h
     jne pathNotFound
     display errMessage1
-    jmp fopenError
+    jmp fopenEnd
     
 pathNotFound:
 
     cmp al, 03h
     jne tooManyFilesOpened 
     display errMessage2
-    jmp fopenError
+    jmp fopenEnd
     
 tooManyFilesOpened:
                         
     cmp al, 04h
     jne accessDenied 
     display errMessage3
-    jmp fopenError
+    jmp fopenEnd
     
 accessDenied:
 
     cmp al, 05h
     jne wrongAccessMode 
     display errMessage4
-    jmp fopenError
+    jmp fopenEnd
     
 wrongAccessMode:
 
     cmp al, 0Ch
-    jne fopenError
+    jne fopenEnd
     display errMessage5
-    jmp fopenError
-     
-fopenOk:
-    mov ax, 0 
     jmp fopenEnd
-fopenError: 
-    mov ax, 1
+     
 fopenEnd:
     pop cx    
     ret 
@@ -245,12 +242,17 @@ handling:
     lea dx, buf1
     call readFromFile ; fill buffer  
     cmp ax, 1
-    je finCmp
+    je finCmp                   
+    
+    ;display buf1
+    
     mov bx, file2Descr  
     lea dx, buf2
     call readFromFile ; fill buffer
     cmp ax, 1
-    je finCmp        
+    je finCmp     
+    
+    ;display buf2   
     
     cmp cx, buf1Size   ; cx<bufSize -> not enough chars
     jb lastOperation  ; to fill the buf -> end of file
@@ -262,13 +264,15 @@ handling:
     jmp handling
 
 lastOperation:
-    mov eof, 1
+    ;mov eof, 1
     call scanBuf   
     cmp ax, 0
-    jne notEquals0
+    jne notEquals0      
+    display equalMessage
     jmp finCmp 
 notEquals0:
-    mov equf, 1   
+    ;mov equf, 1    
+    display notEqualMessage 
     jmp finCmp
 finCmp: 
     popa
@@ -278,19 +282,18 @@ filesCmp endp
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 readFromFile proc  
 ;requires: bx - file descr
+;          dx - buf
 ;returns:  ax - operation code (0 - ok, 1 - error)
 ;          cx - amount of read bytes
     mov ax, 0
     mov ah, 3fh
-    mov cx, 50 ; read 50 bytes if possible
-    ;lea dx, buf 
+    mov cx, 50 ; read 50 bytes if possible 
+    ;lea dx, buf1 
     int 21h
-    
     jc FRRerror 
     
     mov cx, ax
     mov ax, 0
-;   display sucMessage3
     jmp FRRend
 
 FRRerror:
@@ -300,28 +303,26 @@ FRRerror:
 FRRend:
     ret
 readFromFile endp
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;   lab5.exe file1.txt
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;   
 scanBuf proc
-scan:      
-    lea si, buf1
-    lodsb ; load character
+;requires: cx - number of comparing symbols
+;returns:  ax - 0 for equal bufs, 1 for not equal 
+    cld               
+    dec cx
+    mov si, offset buf1
+    mov di, offset buf1 
+    repe cmps    
+    jne notEqual 
     
-    mov bx, ax
-    
-    lea si, buf2
-    lodsb ; load character  
-      
-    cmp al, bl  
-    je notEqual 
-    
-    mov ax, 0 
-    display equalMessage
+    xor ax, ax 
     jmp finScan
      
-notEqual:
-    display notEqualMessage 
-finScan:
+notEqual: 
+    mov ax, 1     
+    ;display notEqualMessage
+finScan:          
+display ax
     ret
 scanBuf endp  
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
