@@ -1,11 +1,11 @@
 cseg segment para public 'code'
     overlay proc
         assume cs:cseg
-        ;push ds
+        push ds
         
-        add ax, cx
+        sub ax, cx
         
-        ;pop ds
+        pop ds
         retf
         overlay endp
     cseg ends

@@ -2,13 +2,23 @@
 .stack	100h  
 
 .data
-start_msg      db  0Dh,'Enter string A1 X A2 X A3 (max length - 100): $' 
-error_msg      db  0Dh,'Bad input, enter again! $'             
+start_msg                   db  0Dh,'Enter string A1 X A2 X A3 (max A - 99): $' 
+error_msg                   db  0Dh,'Bad input, enter again! $'
 endl_msg                    db  0Ah, 0Dh, '$'
-base_str db 202,202 dup ('$')          
+base_str                    db 202,202 dup ('$')          
 buffer                      dw  ?    
 last_num                    dw  ?  
-last_oper                   db  ?
+last_oper                   db  ?  
+two                         equ 2       
+
+epb dw ?
+dw 0     
+run_adr dw 0
+run_seg dw ?
+pathAdd db "OVERADD.exe", 0         
+pathSub db "OVERSUB.exe", 0   
+pathMul db "OVERMUL.exe", 0    
+pathDiv db "OVERDIV.exe", 0     
 
 .code
 
@@ -32,16 +42,16 @@ showMsg proc
     ret
 showMsg endp 
 
-inStr proc         
+inpStr proc         
     push ax
     mov ah,0ah
     int 21h   
     pop ax
     
     ret 
-inStr endp   
+inpStr endp   
 
-checkSym proc          
+checkSym proc 
     cmp al, '+'
     je opPlus   
     
@@ -95,7 +105,7 @@ checkSym proc
         ret 
 checkSym endp   
 
-calculate proc  
+calculate proc 
     cmp last_oper, 2
     jge go      
     
@@ -105,7 +115,8 @@ calculate proc
     mov buffer, 0 
     jmp exitCalc
     
-    go:  
+    go:        
+    push bx
     mov ax, last_num 
     
     cmp last_oper, 2 
@@ -121,71 +132,120 @@ calculate proc
     je diver
     
     plus:
-        add ax, buffer
+        mov dx, offset pathAdd
         jmp endCalc     
         
     minus:
-        sub ax, buffer
+        mov dx, offset pathSub 
         jmp endCalc    
         
     multipl:
-        mul buffer
+        mov dx, offset pathMul
         jmp endCalc 
         
     diver: 
-        xor dx, dx
-        div buffer  
+        mov dx, offset pathDiv 
         
-    endCalc:  
+    endCalc:      
+    push ax  
+    mov cx, buffer   
+
+mov bx, offset EPB 
+mov ax, 4B03h 
+int 21h       
+
+pop ax
+ 
+
+
+call dword ptr run_adr    
+       
+        pop bx
         mov last_num, ax 
         mov last_oper, bh   
         mov buffer, 0
     
-    exitCalc:     
+    exitCalc:  
+       
     ret
 calculate endp
 
 ;al - num     
-outNum proc
-    mov cl, 10
-    outLoop:
-    div cl
-    mov dl, ah
+outNum proc    
+    lea dx, endl_msg
+    call showMsg
+        push    ax
+        push    bx
+        push    cx
+        push    dx
+        push    di
+ 
+        mov     cx, 10
+        xor     di, di          
+ 
+        or      ax, ax
+        jns     convert
+        push    ax
+        mov     dx, '-'
+        mov     ah, two           
+        int     21h
+        pop     ax
+ 
+        neg     ax
+ 
+convert:
+        xor     dx, dx
+        div     cx              
+        add     dl, '0'         
+        inc     di
+        push    dx             
+        or      ax, ax
+        jnz     convert
+        
+print:
+        pop     dx              
+        mov     ah, two           
+        int     21h
+        dec     di              
+        jnz     print
+ 
+        pop     di
+        pop     dx
+        pop     cx
+        pop     bx
+        pop     ax
+        ret
+outNum endp   
     
-    cmp dl, 0
-    jne do  
-    
-    cmp al, 0
-    jne do
-    
-    jmp exit
-    
-    do:   
-    push ax
-    
-    add dl, '0' 
-    mov ah, 02h
-    int 21h      
-    
-    pop ax
-    xor ah, ah
-    
-    jmp outLoop
-    exit: 
-    ret
-outNum endp
 
 start:
 
 mov	ax,@data                      
 mov	ds,ax 
-           
+
+mov ax, zzz
+mov dx, es 
+sub ax, dx 
+mov  bx, ax
+mov ah, 4ah
+int 21h        
+ 
+mov ah, 48h  
+mov bx, 1000h      
+int 21h     
+ 
+mov EPB, ax  
+mov EPB+2, ax 
+mov run_seg, ax 
+mov ax, ds
+mov es, ax 
+          
 beg:           
 lea dx, start_msg
 call showMsg  
 
 lea dx, base_str
-call inStr
+call inpStr
 
 mov si, offset base_str+2       
 mov bl, 1
@@ -240,7 +300,12 @@ loop inputLoop
 outRes:          
     mov ax, last_num 
     
-    call outNum
+    call outNum      
     
-end start  
+save_sp dw ?
+save_ss dw ?
 
+zzz segment
+zzz ends
+    
+end start 
